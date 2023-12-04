@@ -7,5 +7,7 @@ If you use SeeKAT for publication purposes, please cite my paper: https://ui.ads
 
 Usage:
 ( pip install -r requirements.txt )
+
 python main.txt
+
 Open 127.0.0.1:2000 in browser

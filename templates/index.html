@@ -1,1 +1,339 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0">
+    <title>SeeKAT.py</title>
+    <link rel="icon" href="static/logo_small.png" type="image/png">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <link href="http://cdn.bokeh.org/bokeh/release/bokeh-0.11.1.min.css"
+    rel="stylesheet" type="text/css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bokeh/3.0.1/bokeh.min.js"
+        integrity="sha512-p7EUyPmeDeOwHiu7fIZNboAcQLxei3sWtXoHoShWWiPNUSRng/Xs5JPcaFPRa4dKy9IuHjyIQuLE4caGCwuewA=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
+    <style>
+        .logo {
+            width: 450px;
+            height: 100px;
+            margin-right: 10px;  /* Adjust the margin as needed */
+        }
+
+        label {
+        display: block; /* Add this line to make labels block elements */
+        margin-bottom: 5px; /* Add some bottom margin for spacing */
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f4f4f4;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            flex-direction: column; /* Updated to column layout */
+            max-width: 100%; /* Set a maximum width for the body */
+
+        }
+
+        h1 {
+            font-size: 3.5em;
+            color: #333;
+            margin: 20px 0;
+            margin-bottom: 80px;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: row; /* Updated to row layout */
+            align-items: flex-start; /* Align items to the start of the cross axis */
+            justify-content: center;
+            max-width: 100%; /* Set a maximum width for the body */
+
+        }
+
+        #figure-container {
+            margin-right: 20px;
+            margin-top: 20px;
+
+        }
+
+        #input-container {
+            width: 600px;
+            margin-right: 20px;
+
+        }
+
+        form {
+            margin-bottom: 20px;
+        }
+
+        .input-set {
+            margin-bottom: 10px;
+        }
+
+        #beams-container {
+            max-height: 800px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+        #messageBox {
+            height: 150px; /* Set the desired fixed height */
+            overflow-y: auto; /* Enable vertical scrolling */
+            border: 1px solid #ccc; /* Add a border for styling */
+            padding: 10px; /* Add padding for better appearance */
+        }
+
+    </style>
+</head>
+
+<body>
+
+    <img src="{{ url_for('static', filename='logo_title.png') }}" alt="Logo" class="logo">
+    <!-- <h1>SeeKAT.py Web App</h1> -->
+
+    <div class="container">
+        <!-- <input type="hidden" id="img_data" name="img_data" value=""> -->
+        <div id="figure-container">
+            {{ script | safe }}
+            {{ div | safe }}
+
+            <!-- {% if img_data %} -->
+                <!-- <div id="figure-container"> -->
+                <!-- <img src='data:image/png;base64,{{ img_data }}'/> -->
+                <!-- </div> -->
+                <!-- <div id="figure-container"></div> -->
+            <!-- {% endif %} -->
+        </div>
+
+        <div id="input-container">
+            <label for="beamSelector">Select Number of Beams:</label>
+            <input type="range" id="beamSelector" name="nbeams" min="3" max="25" value="3" oninput="updateValue(this.value)">
+            <span id="sliderValue"></span>
+
+            <button onclick="updateNbeams()">Update Beams</button>
+
+            <form method="post" action="/" enctype="multipart/form-data" onsubmit="return validateForm();">
+                <label for="psf_file">Upload PSF File:</label>
+                <input type="file" name="psf_file" accept=".fits">
+                
+        <p>Selected Number of Beams: <span id="selectedNbeams">3</span></p>
+            <div id="inputFieldsContainer">
+                <!-- Input fields will be dynamically generated here -->
+            </div>
+            
+                <fieldset>
+                    <legend>Options</legend>
+
+                    <!-- Additional field for PSF resolution -->
+                    <label for="res">PSF Resolution (arcsec/pixel):</label>
+                    <input type="text" name="res[]" value="{{ request.form.get('res[]', '1.0') }}" required>
+
+                    <!-- Additional field for Beam overlap -->
+                    <label for="overlap">Beam overlap fraction:</label>
+                    <input type="text" name="overlap[]" value="{{ request.form.get('overlap[]', '0.25') }}" required>
+
+                    <!-- Additional field for clipping -->
+                    <label for="clipping">Clipping threshold:</label>
+                    <input type="text" name="clipping[]" value="{{ request.form.get('clipping[]', '0.08') }}" required>
+
+                    <!-- Additional field for N beams -->
+                    <label for="npairs">Nr of beams to use (0 = all):</label>
+                    <input type="text" name="npairs[]" value="{{ request.form.get('npairs[]', '0') }}" required>
+
+                    <!-- Additional field for N sig -->
+                    <label for="nsig">Nr of std dev contours:</label>
+                    <input type="text" name="nsig[]" value="{{ request.form.get('nsig[]', '2') }}" required>
+                    
+                    <br><br> 
+                </fieldset>
+            <input type="submit" value="Submit">
+        </form>
+<div id="messageBox">
+    <h3>{{ message | safe}}</h2>
+</div>
+        </div>
+
+
+    </div>
+
+    <script>
+        // Initialize nbeams with the default value
+        // var nbeams = 3;
+        // Initial generation of input fields
+        // generateInputFields();
+        window.onload = initializePage;
+
+        var socket = io.connect('http://' + document.domain + ':' + location.port + '/');
+
+        socket.on('connect', function() {
+            console.log('Connected to server');
+        });
+
+        socket.on('disconnect', function() {
+            console.log('Disconnected from server');
+        });       
+
+        function updateValue(value) {
+            document.getElementById('sliderValue').textContent = value;
+        }
+
+        function initializePage() {
+            nbeams = getPreviousNbeamsValue();
+            console.log("nbeams", nbeams)
+            document.getElementById("beamSelector").value = nbeams;
+            document.getElementById("selectedNbeams").textContent = nbeams;
+
+            generateInputFields();
+            console.log("Page initialised");
+        }
+
+        function getPreviousNbeamsValue() {
+            // Retrieve previous nbeams value from local storage
+            var storedValue = localStorage.getItem("selectedNbeams");
+            return storedValue ? parseInt(storedValue, 10) : 3; // Default to 3 if no previous value
+        }
+
+        function updateNbeams() {
+            // Get the selected value from the dropdown
+            var selectedValue = document.getElementById("beamSelector").value;
+            console.log("Number of beams: ", selectedValue);
+
+            // Update the variable or perform any other actions with the selected value
+            // For example, you can send it to the server or update the UI
+            nbeams = selectedValue;
+
+            // Update the display
+            document.getElementById("selectedNbeams").textContent = nbeams;
+            localStorage.setItem("selectedNbeams", nbeams);
+
+            // Generate input fields based on the selected number of beams
+            generateInputFields();
+
+        }
+
+        function getPreviousInputValues(inputId) {
+            // Retrieve previous input values from local storage
+            var storedValues = localStorage.getItem(inputId);
+
+            try {
+                // Try to parse the stored value as JSON array
+                return storedValues ? JSON.parse(storedValues) : [];
+            } catch (error) {
+                // If parsing fails, return an empty array
+                return [];
+            }
+        }
+
+        function setPreviousInputValues(inputId, values) {
+            // Save input values to local storage
+            localStorage.setItem(inputId, JSON.stringify(values));
+        }
+
+        function generateInputFields() {
+            var inputFieldsContainer = document.getElementById("inputFieldsContainer");
+            inputFieldsContainer.innerHTML = ""; // Clear previous content
+
+            for (var i = 0; i < nbeams; i++) {
+                var inputGroup = document.createElement("div");
+                inputGroup.classList.add("input-group");
+
+                var raInput = createInput("text", "RA (hh:mm:ss.ss)", "ra", i);
+                var decInput = createInput("text", "Dec (dd:mm:ss.ss)", "dec", i);
+                var snInput = createInput("text", "S/N", "sn", i);
+
+                // Set input values based on previous submission
+                raInput.value = getPreviousInputValues("ra_" + i);
+                decInput.value = getPreviousInputValues("dec_" + i);
+                snInput.value = getPreviousInputValues("sn_" + i);
+
+                inputGroup.appendChild(raInput);
+                inputGroup.appendChild(decInput);
+                inputGroup.appendChild(snInput);
+
+                inputFieldsContainer.appendChild(inputGroup);
+            }
+        }
+
+        function createInput(type, placeholder, name, index) {
+            var input = document.createElement("input");
+            input.type = type;
+            input.placeholder = placeholder;
+            input.name = name + "[]";
+            input.id = name + "_" + index; // Unique identifier
+
+            return input;
+        }
+
+
+
+        function getPreviousInputValue(inputId) {
+            return localStorage.getItem(inputId) || "";
+        }
+
+        function setPreviousInputValue(inputId, value) {
+
+            localStorage.setItem(inputId, value);
+        }
+
+    // Continue with the rest of your form submission logic
+
+        function validateForm() {
+            console.log("--Validating & Plotting...");
+
+            var inputFields = document.querySelectorAll('#inputFieldsContainer input[type="text"]');
+            
+            for (var i = 0; i < inputFields.length; i++) {
+                if (inputFields[i].value.trim() === "") {
+                    alert("Please fill in all fields before submitting.");
+                    return false; // Field is empty, form is not valid
+                }
+
+                // Validate RA and Dec format
+                if ((inputFields[i].name === "ra[]") && !isValidFormat(inputFields[i].value.trim(), /^-?[0-9]+:[0-9]+:[0-9]+(\.\d+)?$/)) {
+                    alert("Invalid format for RA (h:m:s).");
+                    console.log("--Invalid RA...");
+                    return false;
+                    }
+
+                if ((inputFields[i].name === "dec[]") && !isValidFormat(inputFields[i].value.trim(), /^-?[0-9]+:[0-9]+:[0-9]+(\.\d+)?$/)) {
+                    alert("Invalid format for Dec (d:m:s).");
+                    console.log("--Invalid Dec...");
+                    return false;
+                    }
+
+                // Validate SN as a number
+                if (inputFields[i].name === "sn[]" && !isValidNumber(inputFields[i].value.trim())) {
+                    alert("Invalid format for S/N. Use a valid number.");
+                    console.log("--Invalid SN...");
+                    return false;
+                }
+
+            }
+
+        console.log("Input valid...")
+
+        for (var i = 0; i < nbeams; i++) {
+            setPreviousInputValues("ra_" + i, document.getElementById("ra_" + i).value);
+            setPreviousInputValues("dec_" + i, document.getElementById("dec_" + i).value);
+            setPreviousInputValues("sn_" + i, document.getElementById("sn_" + i).value);
+        }
+
+
+        function isValidFormat(value, regex) {
+            return regex.test(value);
+        }
+        function isValidNumber(value) {
+        // Check if the value can be parsed as a valid number
+        return !isNaN(Number(value));
+        }
+    }
+
+    </script>
+
+
+
+</body>
+
+</html>

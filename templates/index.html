@@ -138,10 +138,6 @@
                     <label for="clipping">Clipping threshold:</label>
                     <input type="text" name="clipping[]" value="{{ request.form.get('clipping[]', '0.08') }}" required>
 
-                    <!-- Additional field for N beams -->
-                    <label for="npairs">Nr of beams to use (0 = all):</label>
-                    <input type="text" name="npairs[]" value="{{ request.form.get('npairs[]', '0') }}" required>
-
                     <!-- Additional field for N sig -->
                     <label for="nsig">Nr of std dev contours:</label>
                     <input type="text" name="nsig[]" value="{{ request.form.get('nsig[]', '2') }}" required>

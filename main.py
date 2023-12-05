@@ -227,7 +227,7 @@ def index():
     
         options.res = [float(value) for value in request.form.getlist('res[]')]
         options.overlap = float(request.form.get('overlap[]', 0.25))
-        options.npairs = [float(value) for value in request.form.getlist('npairs[]')]
+        options.npairs = [0]
         options.clipping = [float(value) for value in request.form.getlist('clipping[]')]
         options.nsig = [float(value) for value in request.form.getlist('nsig[]')]
         options.tickspacing = [float(value) for value in request.form.getlist('tickspacing[]')]

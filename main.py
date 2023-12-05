@@ -203,6 +203,7 @@ def index():
     if request.method == 'POST':
         p2 = figure(width=600, height=600)
         p2.background_fill_color = "#F7FBFF"
+        p2.min_border_bottom = 80
 
         # Get the user-entered data from the form
         user_data = []
